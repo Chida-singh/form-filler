@@ -1,18 +1,47 @@
 {
   "manifest_version": 3,
-  "name": "Smart Google Form Filler",
+  "name": "Google Forms Auto Filler Pro",
   "version": "1.0",
-  "description": "Auto-fill Google Forms and learn new fields locally.",
-  "permissions": ["storage", "scripting", "activeTab"],
-  "host_permissions": ["https://docs.google.com/forms/*"],
-  "action": {
-    "default_popup": "popup.html",
-    "default_icon": "icons/icon.png"
+  "description": "🚀 Epic Google Forms auto-filler with smart profiles and lightning-fast filling!",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://docs.google.com/*",
+    "https://forms.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
       "matches": ["https://docs.google.com/forms/*"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Auto Filler Pro - Fill Forms Like a Boss!",
+    "default_icon": {
+      "16": "icons/icon.png",
+      "32": "icons/icon.png",
+      "48": "icons/icon.png",
+      "128": "icons/icon.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon.png",
+    "32": "icons/icon.png",
+    "48": "icons/icon.png",
+    "128": "icons/icon.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/*.png"],
+      "matches": ["<all_urls>"]
     }
   ]
 }
