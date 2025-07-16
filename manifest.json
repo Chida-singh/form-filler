@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Smart Google Form Filler",
+  "version": "1.0",
+  "description": "Auto-fill Google Forms and learn new fields locally.",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "host_permissions": ["https://docs.google.com/forms/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icons/icon.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://docs.google.com/forms/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
