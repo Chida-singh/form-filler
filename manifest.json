@@ -6,7 +6,10 @@
   "permissions": [
     "activeTab",
     "storage",
-    "scripting"
+    "scripting",
+    "notifications",
+    "contextMenus",
+    "commands"
   ],
   "host_permissions": [
     "https://docs.google.com/*",
@@ -43,5 +46,21 @@
       "resources": ["icons/*.png"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "commands": {
+    "fill-form": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F",
+        "mac": "Command+Shift+F"
+      },
+      "description": "Quick fill the current form"
+    },
+    "analyze-form": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+A",
+        "mac": "Command+Shift+A"
+      },
+      "description": "Analyze form fields"
+    }
+  }
 }

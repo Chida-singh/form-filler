@@ -201,49 +201,160 @@ class AutoFillerBackground {
     }
 
     detectFormFields() {
-        // This function runs in the page context
-        const forms = document.querySelectorAll('form');
-        const fieldCount = document.querySelectorAll('input, textarea, select').length;
+        // Enhanced Google Forms detection
+        const getFormTitle = () => {
+            const titleSelectors = [
+                '[role="heading"]',
+                '.freebirdFormviewerViewHeaderTitle',
+                'h1',
+                '.exportHeader h1'
+            ];
+            
+            for (const selector of titleSelectors) {
+                const title = document.querySelector(selector);
+                if (title && title.textContent.trim()) {
+                    return title.textContent.trim();
+                }
+            }
+            return 'Google Form';
+        };
+
+        const getFieldCount = () => {
+            const questionContainers = document.querySelectorAll([
+                '[role="listitem"]',
+                '.freebirdFormviewerComponentsQuestionBaseRoot',
+                '.geS5n',
+                '.Qr7Oae'
+            ].join(','));
+            
+            let count = 0;
+            questionContainers.forEach(container => {
+                const hasInput = container.querySelector('input, textarea, select, [role="radio"], [role="checkbox"]');
+                if (hasInput) count++;
+            });
+            
+            return count;
+        };
+
+        const formTitle = getFormTitle();
+        const fieldCount = getFieldCount();
         
         if (fieldCount > 0) {
-            console.log(`🎯 Detected ${fieldCount} form fields!`);
+            console.log(`🎯 Detected "${formTitle}" with ${fieldCount} form fields!`);
             
-            // Add visual indicator
+            // Enhanced visual indicator
             const indicator = document.createElement('div');
             indicator.id = 'autofiller-indicator';
-            indicator.innerHTML = '🚀 Auto Filler Ready!';
+            indicator.innerHTML = `
+                <div class="indicator-content">
+                    <div class="indicator-icon">🚀</div>
+                    <div class="indicator-text">
+                        <div class="indicator-title">Auto Filler Ready!</div>
+                        <div class="indicator-subtitle">${fieldCount} fields detected</div>
+                    </div>
+                </div>
+            `;
             indicator.style.cssText = `
                 position: fixed;
-                top: 10px;
-                right: 10px;
-                background: linear-gradient(45deg, #4CAF50, #45a049);
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #4CAF50, #45a049);
                 color: white;
-                padding: 8px 16px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: bold;
+                border-radius: 12px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 z-index: 10000;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-                animation: slideIn 0.5s ease-out;
+                box-shadow: 0 4px 20px rgba(76, 175, 80, 0.3);
+                animation: slideInBounce 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+                cursor: pointer;
+                transition: transform 0.2s ease;
             `;
             
-            // Add animation
+            // Add enhanced styles
             const style = document.createElement('style');
             style.textContent = `
-                @keyframes slideIn {
-                    from { transform: translateX(100%); opacity: 0; }
-                    to { transform: translateX(0); opacity: 1; }
+                @keyframes slideInBounce {
+                    0% { 
+                        transform: translateX(100%) scale(0.8); 
+                        opacity: 0; 
+                    }
+                    60% { 
+                        transform: translateX(-10px) scale(1.05); 
+                        opacity: 1; 
+                    }
+                    100% { 
+                        transform: translateX(0) scale(1); 
+                        opacity: 1; 
+                    }
+                }
+                
+                .indicator-content {
+                    display: flex;
+                    align-items: center;
+                    padding: 12px 16px;
+                    gap: 12px;
+                }
+                
+                .indicator-icon {
+                    font-size: 24px;
+                    animation: pulse 2s infinite;
+                }
+                
+                .indicator-text {
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .indicator-title {
+                    font-weight: 600;
+                    font-size: 14px;
+                    line-height: 1.2;
+                }
+                
+                .indicator-subtitle {
+                    font-size: 11px;
+                    opacity: 0.9;
+                    margin-top: 2px;
+                }
+                
+                @keyframes pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.1); }
+                }
+                
+                #autofiller-indicator:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 6px 25px rgba(76, 175, 80, 0.4);
                 }
             `;
             document.head.appendChild(style);
             document.body.appendChild(indicator);
             
-            // Remove indicator after 3 seconds
+            // Click to analyze
+            indicator.addEventListener('click', () => {
+                // Send message to content script to analyze form
+                window.postMessage({
+                    type: 'AUTOFILLER_ANALYZE',
+                    source: 'autofiller-indicator'
+                }, '*');
+            });
+            
+            // Auto-remove after 5 seconds
             setTimeout(() => {
                 if (indicator.parentNode) {
-                    indicator.remove();
+                    indicator.style.animation = 'slideOut 0.4s ease-in forwards';
+                    setTimeout(() => indicator.remove(), 400);
                 }
-            }, 3000);
+            }, 5000);
+            
+            // Add slide out animation
+            style.textContent += `
+                @keyframes slideOut {
+                    to { 
+                        transform: translateX(100%) scale(0.8); 
+                        opacity: 0; 
+                    }
+                }
+            `;
         }
     }
 
@@ -329,10 +440,18 @@ class AutoFillerBackground {
         
         await chrome.storage.local.set({fillStats: stats.fillStats});
         
-        // Show success notification
+        // Enhanced success notification with learning info
+        let message = `Filled ${data.fieldCount} fields in ${data.duration}ms`;
+        
+        if (data.newFieldsLearned && data.newFieldsLearned > 0) {
+            message += ` (learned ${data.newFieldsLearned} new fields)`;
+        } else if (data.learningMode === false) {
+            message += ' (learning mode disabled)';
+        }
+        
         this.showNotification(
             '✅ Form Filled Successfully!',
-            `Filled ${data.fieldCount} fields in ${data.duration}ms`,
+            message,
             'success'
         );
     }

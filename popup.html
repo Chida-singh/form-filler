@@ -1,9 +1,400 @@
 <!DOCTYPE html>
 <html>
-  <head><title>Form Filler</title></head>
-  <body>
-    <h3>Saved Fields</h3>
-    <div id="data"></div>
+<head>
+    <meta charset="utf-8">
+    <title>Auto Filler Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            width: 380px;
+            min-height: 500px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+        }
+        
+        .header {
+            background: rgba(255,255,255,0.95);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .header h1 {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .header .subtitle {
+            font-size: 12px;
+            color: #666;
+            opacity: 0.8;
+        }
+        
+        .content {
+            background: white;
+            flex: 1;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .tab-button {
+            flex: 1;
+            padding: 12px;
+            background: none;
+            border: none;
+            font-size: 13px;
+            font-weight: 500;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tab-button.active {
+            background: white;
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px;
+            min-height: 350px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .action-button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .primary-button {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .primary-button:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+        
+        .secondary-button {
+            background: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        
+        .secondary-button:hover {
+            background: #e0e0e0;
+        }
+        
+        .form-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .form-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .form-meta {
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            gap: 15px;
+        }
+        
+        .field-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+        
+        .field-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .field-item:last-child {
+            border-bottom: none;
+        }
+        
+        .field-type {
+            background: #2196F3;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .field-label {
+            flex: 1;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .field-required {
+            color: #f44336;
+            font-size: 12px;
+        }
+        
+        .status-message {
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+        
+        .profiles-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        
+        .profile-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .profile-name {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .profile-fields {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        
+        .profile-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .profile-button {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            flex: 1;
+        }
+        
+        .settings-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .toggle-setting {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            margin-bottom: 5px;
+        }
+        
+        .toggle-setting input[type="checkbox"] {
+            display: none;
+        }
+        
+        .toggle-slider {
+            width: 44px;
+            height: 24px;
+            background: #ccc;
+            border-radius: 24px;
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: all 0.3s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .toggle-setting input:checked + .toggle-slider {
+            background: #4CAF50;
+        }
+        
+        .toggle-setting input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+        }
+        
+        .toggle-label {
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .setting-description {
+            color: #666;
+            font-size: 11px;
+            margin-left: 56px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 Auto Filler Pro</h1>
+        <div class="subtitle">Smart Google Forms Auto Filler</div>
+    </div>
+    
+    <div class="content">
+        <div class="tab-buttons">
+            <button class="tab-button active" data-tab="analyze">📋 Analyze</button>
+            <button class="tab-button" data-tab="fill">⚡ Fill</button>
+            <button class="tab-button" data-tab="profiles">👤 Profiles</button>
+        </div>
+        
+        <div id="analyze-tab" class="tab-content active">
+            <div id="analyze-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Analyzing form...
+                </div>
+            </div>
+        </div>
+        
+        <div id="fill-tab" class="tab-content">
+            <div class="settings-section">
+                <label class="toggle-setting">
+                    <input type="checkbox" id="learn-mode-toggle" checked>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-label">🧠 Smart Learning Mode</span>
+                </label>
+                <small class="setting-description">Ask for unknown field values and remember them</small>
+            </div>
+            
+            <div id="fill-actions">
+                <button class="action-button primary-button" id="quick-fill-btn">
+                    ⚡ Smart Fill Form
+                </button>
+                <button class="action-button secondary-button" id="analyze-btn">
+                    🔍 Analyze Fields
+                </button>
+                <button class="action-button secondary-button" id="clear-data-btn">
+                    🗑️ Clear Saved Data
+                </button>
+            </div>
+            <div id="fill-status"></div>
+        </div>
+        
+        <div id="profiles-tab" class="tab-content">
+            <div id="profiles-content">
+                <div class="empty-state">
+                    <div class="empty-state-icon">👤</div>
+                    <p>No profiles yet</p>
+                    <small>Create profiles to save form data for quick filling</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <script src="popup.js"></script>
-  </body>
+</body>
 </html>
