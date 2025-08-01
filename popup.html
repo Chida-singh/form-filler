@@ -336,6 +336,159 @@
             margin-left: 56px;
             display: block;
         }
+        
+        .data-header {
+            text-align: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 15px;
+        }
+        
+        .data-header h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .data-header small {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 15px;
+            transition: border-color 0.2s;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .data-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+        
+        .data-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            background: white;
+            transition: background-color 0.2s;
+        }
+        
+        .data-item:last-child {
+            border-bottom: none;
+        }
+        
+        .data-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .data-item.editing {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+        
+        .data-field {
+            flex: 1;
+            margin-right: 10px;
+        }
+        
+        .data-field-name {
+            font-weight: 500;
+            color: #333;
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+        
+        .data-field-value {
+            color: #666;
+            font-size: 12px;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .data-field-input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        
+        .data-field-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .data-item-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .data-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .data-btn.edit {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .data-btn.save {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .data-btn.cancel {
+            background: #f5f5f5;
+            color: #666;
+        }
+        
+        .data-btn.delete {
+            background: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .data-btn:hover {
+            transform: translateY(-1px);
+        }
+        
+        .data-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .empty-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+        
+        .empty-data-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
     </style>
 </head>
 <body>
@@ -348,6 +501,7 @@
         <div class="tab-buttons">
             <button class="tab-button active" data-tab="analyze">📋 Analyze</button>
             <button class="tab-button" data-tab="fill">⚡ Fill</button>
+            <button class="tab-button" data-tab="data">📝 My Data</button>
             <button class="tab-button" data-tab="profiles">👤 Profiles</button>
         </div>
         
@@ -382,6 +536,33 @@
                 </button>
             </div>
             <div id="fill-status"></div>
+        </div>
+        
+        <div id="data-tab" class="tab-content">
+            <div class="data-header">
+                <h3>📝 My Saved Data</h3>
+                <small>View and edit your saved form field values</small>
+            </div>
+            
+            <div id="data-search">
+                <input type="text" id="data-filter" placeholder="🔍 Search field names..." class="search-input">
+            </div>
+            
+            <div id="data-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading your data...
+                </div>
+            </div>
+            
+            <div class="data-actions">
+                <button class="action-button secondary-button" id="add-field-btn">
+                    ➕ Add New Field
+                </button>
+                <button class="action-button secondary-button" id="export-data-btn">
+                    📤 Export Data
+                </button>
+            </div>
         </div>
         
         <div id="profiles-tab" class="tab-content">

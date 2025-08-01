@@ -58,6 +58,19 @@ class AutoFillerPopup {
         document.getElementById('learn-mode-toggle').addEventListener('change', (e) => {
             this.saveLearningModeSetting(e.target.checked);
         });
+
+        // Data management actions
+        document.getElementById('data-filter').addEventListener('input', (e) => {
+            this.filterDataItems(e.target.value);
+        });
+
+        document.getElementById('add-field-btn').addEventListener('click', () => {
+            this.addNewField();
+        });
+
+        document.getElementById('export-data-btn').addEventListener('click', () => {
+            this.exportData();
+        });
     }
 
     async loadCurrentTab() {
@@ -67,6 +80,9 @@ class AutoFillerPopup {
                 break;
             case 'fill':
                 await this.loadFillTab();
+                break;
+            case 'data':
+                await this.loadDataTab();
                 break;
             case 'profiles':
                 await this.loadProfilesTab();
@@ -123,28 +139,67 @@ class AutoFillerPopup {
         try {
             const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
             
+            // Check if the tab is a Google Form
+            if (!tab.url.includes('docs.google.com/forms')) {
+                throw new Error('Not a Google Form page');
+            }
+            
             // Send analysis request to content script
             const response = await chrome.tabs.sendMessage(tab.id, {action: 'analyzeForm'});
             
-            // Wait a moment for analysis to complete
-            setTimeout(async () => {
+            if (!response || !response.success) {
+                throw new Error(response?.error || 'Content script did not respond');
+            }
+            
+            // Wait for analysis to be stored and then retrieve it
+            let attempts = 0;
+            const maxAttempts = 10;
+            const checkInterval = 200; // ms
+            
+            const checkForAnalysis = async () => {
+                attempts++;
                 const result = await chrome.storage.local.get([`form_analysis_${tab.id}`]);
                 const analysis = result[`form_analysis_${tab.id}`];
                 
-                if (analysis) {
+                if (analysis && analysis.timestamp && Date.now() - analysis.timestamp < 5000) {
+                    // Fresh analysis found
                     this.displayFormAnalysis(analysis);
+                    return true;
+                } else if (attempts >= maxAttempts) {
+                    throw new Error('Analysis timeout - no data received');
                 } else {
-                    throw new Error('No analysis data received');
+                    // Try again
+                    setTimeout(checkForAnalysis, checkInterval);
+                    return false;
                 }
-            }, 1000);
+            };
+            
+            await checkForAnalysis();
             
         } catch (error) {
             console.error('Analysis error:', error);
+            let errorMessage = 'Analysis failed';
+            let errorDetail = 'Please try refreshing the page and try again';
+            
+            if (error.message.includes('Not a Google Form')) {
+                errorMessage = 'Not a Google Form';
+                errorDetail = 'Please navigate to a Google Form page';
+            } else if (error.message.includes('Could not establish connection')) {
+                errorMessage = 'Content script not loaded';
+                errorDetail = 'Please refresh the page and try again';
+            } else if (error.message.includes('timeout')) {
+                errorMessage = 'Analysis timeout';
+                errorDetail = 'The form might be too complex or not fully loaded';
+            }
+            
             analyzeContent.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">⚠️</div>
-                    <p>Analysis failed</p>
-                    <small>Please try refreshing the page and try again</small>
+                    <p>${errorMessage}</p>
+                    <small>${errorDetail}</small>
+                    <button class="action-button secondary-button" onclick="window.autoFillerPopup.analyzeCurrentForm()" style="margin-top: 15px;">
+                        🔄 Try Again
+                    </button>
                 </div>
             `;
         }
@@ -279,30 +334,381 @@ class AutoFillerPopup {
             const learningMode = result.learningMode !== undefined ? result.learningMode : true;
             
             const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-            await chrome.tabs.sendMessage(tab.id, {
+            
+            // Check if the tab is a Google Form
+            if (!tab.url.includes('docs.google.com/forms')) {
+                throw new Error('Not a Google Form page');
+            }
+            
+            const response = await chrome.tabs.sendMessage(tab.id, {
                 action: 'quickFill',
                 learningMode: learningMode
             });
             
-            setTimeout(() => {
-                statusDiv.innerHTML = `
-                    <div class="status-success">
-                        ✅ Smart fill completed! ${learningMode ? 'New field values have been saved.' : ''}
-                    </div>
-                `;
-                
-                // Reload the tab to show updated data count
-                setTimeout(() => this.loadFillTab(), 2000);
-            }, 1500);
+            if (!response || !response.success) {
+                throw new Error(response?.error || 'Content script did not respond');
+            }
+            
+            statusDiv.innerHTML = `
+                <div class="status-success">
+                    ✅ Smart fill completed! ${learningMode ? 'New field values have been saved.' : ''}
+                </div>
+            `;
+            
+            // Reload the tab to show updated data count
+            setTimeout(() => this.loadFillTab(), 2000);
             
         } catch (error) {
             console.error('Fill error:', error);
+            let errorMessage = 'Failed to fill form';
+            let errorDetail = 'Please try again';
+            
+            if (error.message.includes('Not a Google Form')) {
+                errorMessage = 'Not a Google Form';
+                errorDetail = 'Please navigate to a Google Form page';
+            } else if (error.message.includes('Could not establish connection')) {
+                errorMessage = 'Content script not loaded';
+                errorDetail = 'Please refresh the page and try again';
+            }
+            
             statusDiv.innerHTML = `
                 <div class="status-error">
-                    ❌ Failed to fill form. Please try again.
+                    ❌ ${errorMessage}. ${errorDetail}
                 </div>
             `;
         }
+    }
+
+    async loadDataTab() {
+        const dataContent = document.getElementById('data-content');
+        
+        try {
+            const result = await chrome.storage.local.get(['formData']);
+            const formData = result.formData || {};
+            this.formData = formData;
+            
+            console.log('📊 Loaded form data:', formData);
+            console.log('📊 Number of fields:', Object.keys(formData).length);
+            
+            if (Object.keys(formData).length === 0) {
+                dataContent.innerHTML = `
+                    <div class="empty-data">
+                        <div class="empty-data-icon">📝</div>
+                        <p>No saved data yet</p>
+                        <small>Fill out some forms to see your saved field values here</small>
+                    </div>
+                `;
+            } else {
+                this.displayDataItems(formData);
+            }
+        } catch (error) {
+            console.error('Error loading data:', error);
+            dataContent.innerHTML = `
+                <div class="empty-data">
+                    <div class="empty-data-icon">❌</div>
+                    <p>Error loading data</p>
+                </div>
+            `;
+        }
+    }
+
+    displayDataItems(formData, filter = '') {
+        const dataContent = document.getElementById('data-content');
+        const filteredData = Object.entries(formData).filter(([key, value]) => 
+            key.toLowerCase().includes(filter.toLowerCase()) ||
+            String(value).toLowerCase().includes(filter.toLowerCase())
+        );
+
+        if (filteredData.length === 0) {
+            dataContent.innerHTML = `
+                <div class="empty-data">
+                    <div class="empty-data-icon">🔍</div>
+                    <p>No matching data found</p>
+                    <small>Try adjusting your search</small>
+                </div>
+            `;
+            return;
+        }
+
+        dataContent.innerHTML = `
+            <div class="data-list">
+                ${filteredData.map(([fieldName, fieldValue]) => `
+                    <div class="data-item" data-field-name="${this.escapeHtml(fieldName)}">
+                        <div class="data-field">
+                            <div class="data-field-name">${this.escapeHtml(fieldName)}</div>
+                            <div class="data-field-value" title="${this.escapeHtml(String(fieldValue))}">
+                                ${this.escapeHtml(this.formatFieldValue(fieldValue))}
+                            </div>
+                        </div>
+                        <div class="data-item-actions">
+                            <button class="data-btn edit" data-action="edit">
+                                ✏️ Edit
+                            </button>
+                            <button class="data-btn delete" data-action="delete">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+
+        // Add event listeners for edit and delete buttons
+        const editButtons = dataContent.querySelectorAll('.data-btn[data-action="edit"]');
+        const deleteButtons = dataContent.querySelectorAll('.data-btn[data-action="delete"]');
+
+        editButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const dataItem = e.target.closest('.data-item');
+                const fieldName = dataItem.dataset.fieldName;
+                this.editField(fieldName);
+            });
+        });
+
+        deleteButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const dataItem = e.target.closest('.data-item');
+                const fieldName = dataItem.dataset.fieldName;
+                this.deleteField(fieldName);
+            });
+        });
+    }
+
+    formatFieldValue(value) {
+        if (Array.isArray(value)) {
+            return value.join(', ');
+        }
+        const str = String(value);
+        return str.length > 30 ? str.substring(0, 30) + '...' : str;
+    }
+
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
+
+    filterDataItems(filter) {
+        if (this.formData) {
+            this.displayDataItems(this.formData, filter);
+        }
+    }
+
+    editField(fieldName) {
+        const dataItem = document.querySelector(`[data-field-name="${this.escapeHtml(fieldName)}"]`);
+        if (!dataItem) {
+            console.error('Data item not found for field:', fieldName);
+            return;
+        }
+
+        dataItem.classList.add('editing');
+        const fieldValue = this.formData[fieldName];
+        const isArray = Array.isArray(fieldValue);
+        const displayValue = isArray ? fieldValue.join(', ') : String(fieldValue);
+
+        const dataField = dataItem.querySelector('.data-field');
+        dataField.innerHTML = `
+            <div class="data-field-name">${this.escapeHtml(fieldName)}</div>
+            <input type="text" class="data-field-input" value="${this.escapeHtml(displayValue)}" 
+                   placeholder="Enter value..." maxlength="200">
+            ${isArray ? '<small style="color: #666; font-size: 10px;">Separate multiple values with commas</small>' : ''}
+        `;
+
+        const actions = dataItem.querySelector('.data-item-actions');
+        actions.innerHTML = `
+            <button class="data-btn save" data-action="save">
+                ✅ Save
+            </button>
+            <button class="data-btn cancel" data-action="cancel">
+                ❌ Cancel
+            </button>
+        `;
+
+        // Add event listeners for save and cancel
+        const saveBtn = actions.querySelector('[data-action="save"]');
+        const cancelBtn = actions.querySelector('[data-action="cancel"]');
+
+        saveBtn.addEventListener('click', () => this.saveField(fieldName));
+        cancelBtn.addEventListener('click', () => this.cancelEdit(fieldName));
+
+        // Focus and select the input
+        const input = dataItem.querySelector('.data-field-input');
+        input.focus();
+        input.select();
+
+        // Handle Enter and Escape keys
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.saveField(fieldName);
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                this.cancelEdit(fieldName);
+            }
+        });
+    }
+
+    async saveField(fieldName) {
+        const dataItem = document.querySelector(`[data-field-name="${this.escapeHtml(fieldName)}"]`);
+        if (!dataItem) {
+            console.error('Data item not found for field:', fieldName);
+            return;
+        }
+
+        const input = dataItem.querySelector('.data-field-input');
+        if (!input) {
+            console.error('Input field not found for field:', fieldName);
+            return;
+        }
+
+        const newValue = input.value.trim();
+
+        if (!newValue) {
+            alert('Value cannot be empty. Use delete if you want to remove this field.');
+            return;
+        }
+
+        try {
+            // Check if original value was array and handle accordingly
+            const originalValue = this.formData[fieldName];
+            let processedValue;
+
+            if (Array.isArray(originalValue)) {
+                // Split by comma and trim each value
+                processedValue = newValue.split(',').map(v => v.trim()).filter(v => v);
+                if (processedValue.length === 0) {
+                    alert('At least one value is required for multi-value fields.');
+                    return;
+                }
+            } else {
+                processedValue = newValue;
+            }
+
+            // Update local data
+            this.formData[fieldName] = processedValue;
+
+            // Save to storage
+            await chrome.storage.local.set({ formData: this.formData });
+
+            // Refresh display
+            this.displayDataItems(this.formData, document.getElementById('data-filter').value);
+
+            // Show success message briefly
+            this.showDataMessage('✅ Field updated successfully!', 'success');
+
+            console.log('Field saved successfully:', fieldName, '=', processedValue);
+
+        } catch (error) {
+            console.error('Error saving field:', error);
+            this.showDataMessage('❌ Failed to save field', 'error');
+        }
+    }
+
+    cancelEdit(fieldName) {
+        // Simply refresh the display to cancel editing
+        this.displayDataItems(this.formData, document.getElementById('data-filter').value);
+    }
+
+    async deleteField(fieldName) {
+        if (!confirm(`Are you sure you want to delete the field "${fieldName}"?`)) {
+            return;
+        }
+
+        try {
+            // Check if field exists
+            if (!this.formData.hasOwnProperty(fieldName)) {
+                console.error('Field not found in formData:', fieldName);
+                this.showDataMessage('❌ Field not found', 'error');
+                return;
+            }
+
+            // Remove from local data
+            delete this.formData[fieldName];
+
+            // Save to storage
+            await chrome.storage.local.set({ formData: this.formData });
+
+            // Refresh display
+            this.displayDataItems(this.formData, document.getElementById('data-filter').value);
+
+            // Show success message
+            this.showDataMessage('🗑️ Field deleted successfully!', 'success');
+
+            console.log('Field deleted successfully:', fieldName);
+
+        } catch (error) {
+            console.error('Error deleting field:', error);
+            this.showDataMessage('❌ Failed to delete field', 'error');
+        }
+    }
+
+    addNewField() {
+        const fieldName = prompt('Enter field name:');
+        if (!fieldName || !fieldName.trim()) return;
+
+        const trimmedName = fieldName.trim();
+        
+        if (this.formData[trimmedName]) {
+            alert('A field with this name already exists. Use edit to modify it.');
+            return;
+        }
+
+        const fieldValue = prompt('Enter field value:');
+        if (fieldValue === null) return; // User cancelled
+
+        this.formData[trimmedName] = fieldValue.trim();
+        
+        // Save to storage
+        chrome.storage.local.set({ formData: this.formData }).then(() => {
+            // Refresh display
+            this.displayDataItems(this.formData, document.getElementById('data-filter').value);
+            this.showDataMessage('➕ New field added successfully!', 'success');
+        }).catch(error => {
+            console.error('Error adding field:', error);
+            this.showDataMessage('❌ Failed to add field', 'error');
+        });
+    }
+
+    exportData() {
+        try {
+            const dataStr = JSON.stringify(this.formData, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `autofiller-data-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.showDataMessage('📤 Data exported successfully!', 'success');
+        } catch (error) {
+            console.error('Error exporting data:', error);
+            this.showDataMessage('❌ Failed to export data', 'error');
+        }
+    }
+
+    showDataMessage(message, type) {
+        const dataContent = document.getElementById('data-content');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `status-message status-${type}`;
+        messageDiv.textContent = message;
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 50px;
+            right: 20px;
+            z-index: 10003;
+            animation: slideInRight 0.3s ease;
+        `;
+        
+        document.body.appendChild(messageDiv);
+        
+        setTimeout(() => {
+            messageDiv.remove();
+        }, 3000);
     }
 
     async saveLearningModeSetting(enabled) {
@@ -325,24 +731,43 @@ class AutoFillerPopup {
             `;
             
             const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
-            await chrome.tabs.sendMessage(tab.id, {action: 'analyzeForm'});
             
-            setTimeout(() => {
-                statusDiv.innerHTML = `
-                    <div class="status-success">
-                        🔍 Form analysis completed! Check the Analyze tab.
-                    </div>
-                `;
-                
-                // Switch to analyze tab
-                this.switchTab('analyze');
-            }, 1000);
+            // Check if the tab is a Google Form
+            if (!tab.url.includes('docs.google.com/forms')) {
+                throw new Error('Not a Google Form page');
+            }
+            
+            const response = await chrome.tabs.sendMessage(tab.id, {action: 'analyzeForm'});
+            
+            if (!response || !response.success) {
+                throw new Error(response?.error || 'Content script did not respond');
+            }
+            
+            statusDiv.innerHTML = `
+                <div class="status-success">
+                    🔍 Form analysis completed! Check the Analyze tab.
+                </div>
+            `;
+            
+            // Switch to analyze tab
+            this.switchTab('analyze');
             
         } catch (error) {
             console.error('Analysis error:', error);
+            let errorMessage = 'Analysis failed';
+            let errorDetail = 'Make sure you\'re on a Google Form';
+            
+            if (error.message.includes('Not a Google Form')) {
+                errorMessage = 'Not a Google Form';
+                errorDetail = 'Please navigate to a Google Form page';
+            } else if (error.message.includes('Could not establish connection')) {
+                errorMessage = 'Content script not loaded';
+                errorDetail = 'Please refresh the page and try again';
+            }
+            
             statusDiv.innerHTML = `
                 <div class="status-error">
-                    ❌ Analysis failed. Make sure you're on a Google Form.
+                    ❌ ${errorMessage}. ${errorDetail}
                 </div>
             `;
         }
